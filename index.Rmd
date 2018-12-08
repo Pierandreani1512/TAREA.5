@@ -1,0 +1,233 @@
+---
+title: "Tarea 5"
+author: "Piera Andreani, Pablo Madrid, Ignacio Loyola"
+date: "7/12/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(sf)
+library(tidyverse)
+library(tidyquant)
+library(quantmod)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+####2.1) Descarge el precio de las acciones de Microsoft ("MSFT") y Apple ("AAPL") desde Enero del 2000 hasta Agosto del 2018 con periocidad mensual.
+```{r}
+AAPL2<-tq_get("AAPL",get = "stock.prices", from = "2000-01-01",
+              to = "2018-08-31", periodicity = "monthly")
+MSFT2<-tq_get("MSFT",get = "stock.prices", from = "2000-01-01",
+              to = "2018-08-31", periodicity = "monthly")
+```
+
+####2.2) Utilizando los datos de 2.1, construya una función que permita:
+####a) Calcular retornos.
+```{r}
+
+
+retorno_Apple<-diff(log(AAPL2$close))
+retorno_Apple
+
+plot(retorno_Apple,col="blue",xlab = "",ylab = "",main = "Retornos Apple",
+     type = "l")
+
+retorno_Microsoft<-diff(log(MSFT2$close))
+retorno_Microsoft
+
+plot(retorno_Microsoft,col="blue",xlab = "",ylab = "",main = "Retornos Microsoft",
+     type = "l")
+
+####a. Calcule E(βˆ1) y var(βˆ1) para muestras de tamaños 50, 100, 500, 1000. ¿Existe sesgo?, ¿Desaparece el sesgo a medida que el tamaño de la muestra aumenta?
+```
+
+```{r}
+set.seed(1234)
+Reps = 10000
+betas = matrix(NA ,nrow = Reps, ncol = 8)
+
+b0 = 2
+b1 = 2.5
+b2 = 1
+
+n = c(50, 100, 500, 1000)
+
+for (j in 1:length(n)){
+  x1 = rnorm(n[j],20,1)
+  x2 = (0.8*x1) + rnorm(n[j],0,1)
+  
+  for (i in 1:Reps) {
+    
+    u = rnorm(n[j],0,1)
+    v = b2*x2 + u
+    
+    Y.sesgo = b0 + b1*x1 + v
+    
+    Y.sin.sesgo = b0 + b1*x1 + b2*x2 + u
+    
+    Regresion.sesgo = lm(Y.sesgo ~ x1)
+    
+    betas[i,j] = Regresion.sesgo$coef[2]
+    
+    Regresion.sin.sesgo = lm(Y.sin.sesgo ~ x1 + x2)
+    
+    betas[i,j+4] = Regresion.sin.sesgo$coef[2]
+    
+  }
+}
+
+betas_df = data.frame(betas)
+
+apply(betas_df, 2, mean)
+
+apply(betas_df, 2, var)
+```
+
+##b. Grafique la distribución de βˆ1 para tamaños de muestra n = 50, 100, 500, 1000
+
+
+```{r}
+g10 <- ggplot(betas_df) + 
+  
+  geom_histogram(aes(betas_df[,1], y=..density..), col="blue", bins = 30) +
+  
+  stat_function(fun=dnorm, args=list(mean=mean(betas_df[,1]), sd=sd(betas_df[,1])), 
+                
+                geom="line", colour="green", size=1) +
+  
+  ylab("Densidad") +   ggtitle("n=50") + xlab(expression(hat(beta)[1])) +
+  
+  theme_bw()
+
+g20 <- ggplot(betas_df) + 
+  
+  geom_histogram(aes(betas_df[,2], y=..density..), col="blue", bins = 30) +
+  
+  stat_function(fun=dnorm, args=list(mean=mean(betas_df[,2]), sd=sd(betas_df[,2])), 
+                
+                geom="line", colour="green", size=1) +
+  
+  ylab("Densidad") +   ggtitle("n=100") + xlab(expression(hat(beta)[1])) +
+  
+  theme_bw()
+
+g30 <- ggplot(betas_df) + 
+  
+  geom_histogram(aes(betas_df[,3], y=..density..), col="blue", bins = 30) +
+  
+  stat_function(fun=dnorm, args=list(mean=mean(betas_df[,3]), sd=sd(betas_df[,3])), 
+                
+                geom="line", colour="green", size=1) +
+  
+  ylab("Densidad") +   ggtitle("n=500") + xlab(expression(hat(beta)[1])) +
+  
+  theme_bw()
+
+g40 <- ggplot(betas_df) + 
+  
+  geom_histogram(aes(betas_df[,4], y=..density..), col="blue", bins = 30) +
+  
+  stat_function(fun=dnorm, args=list(mean=mean(betas_df[,4]), sd=sd(betas_df[,4])), 
+                
+                geom="line", colour="green", size=1) +
+  
+  ylab("Densidad") +   ggtitle("n=1000") + xlab(expression(hat(beta)[1])) +
+  
+  theme_bw()
+
+grid.arrange(g10, g20, g30, g40, nrow=2, ncol=2)
+
+```
+
+##c. Si x2 ∼ U [0, 1], ¿Cómo cambian los resultados que obtuviste en (a) y (b)?
+
+```{r}
+for (j in 1:length(n)){
+  X1 = rnorm(n[j],20,1)
+  X2 = (0.8*X1) + runif(n[j],0,1)
+  
+  
+  for (i in 1:Reps) {
+    
+    u = rnorm(n[j],0,1)
+    v = b2*X2 + u
+    
+    Y.sesgo.2 = b0 + b1*X1 + v
+    
+    Y.sin.sesgo.2 = b0 + b1*X1 + b2*X2 + u
+    
+    Regresion.sesgo.2 = lm(Y.sesgo.2 ~ X1)
+    
+    betas[i,j] = Regresion.sesgo.2$coef[2]
+    
+    Regresion.sin.sesgo.2 = lm(Y.sin.sesgo.2 ~ X1 + X2)
+    
+    betas[i,j+4] = Regresion.sin.sesgo.2$coef[2]
+    
+  }
+}
+
+
+betas_df.2 = data.frame(betas)
+
+apply(betas_df.2, 2, mean)
+
+apply(betas_df.2, 2, var)
+
+```
+
+```{r}
+g100 <- ggplot(betas_df.2) + 
+  
+  geom_histogram(aes(betas_df.2[,1], y=..density..), col="black", bins = 30) +
+  
+  stat_function(fun=dnorm, args=list(mean=mean(betas_df.2[,1]), sd=sd(betas_df.2[,1])), 
+                
+                geom="line", colour="orange", size=1) +
+  
+  ylab("Densidad") +   ggtitle("n=50") + xlab(expression(hat(beta)[1])) +
+  
+  theme_bw()
+
+g200 <- ggplot(betas_df.2) + 
+  
+  geom_histogram(aes(betas_df.2[,2], y=..density..), col="black", bins = 30) +
+  
+  stat_function(fun=dnorm, args=list(mean=mean(betas_df.2[,2]), sd=sd(betas_df.2[,2])), 
+                
+                geom="line", colour="orange", size=1) +
+  
+  ylab("Densidad") +   ggtitle("n=100") + xlab(expression(hat(beta)[1])) +
+  
+  theme_bw()
+
+g300 <- ggplot(betas_df.2) + 
+  
+  geom_histogram(aes(betas_df.2[,3], y=..density..), col="black", bins = 30) +
+  
+  stat_function(fun=dnorm, args=list(mean=mean(betas_df.2[,3]), sd=sd(betas_df.2[,3])), 
+                
+                geom="line", colour="orange", size=1) +
+  
+  ylab("Densidad") +   ggtitle("n=500") + xlab(expression(hat(beta)[1])) +
+  
+  theme_bw()
+
+g400 <- ggplot(betas_df.2) + 
+  
+  geom_histogram(aes(betas_df.2[,4], y=..density..), col="black", bins = 30) +
+  
+  stat_function(fun=dnorm, args=list(mean=mean(betas_df.2[,4]), sd=sd(betas_df.2[,4])), 
+                
+                geom="line", colour="orange", size=1) +
+  
+  ylab("Densidad") +   ggtitle("n=1000") + xlab(expression(hat(beta)[1])) +
+  
+  theme_bw()
+
+grid.arrange(g100, g200, g300, g400, nrow=2, ncol=2)
+
+```
